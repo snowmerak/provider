@@ -81,7 +81,7 @@ func main() {
 ```
 
 ```bash
-&{snowmerak 27} true
+&{John Doe 25} true
 &{0xc00008e060} true
 name: John Doe, age: 25 <nil>
 ```
