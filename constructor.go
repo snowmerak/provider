@@ -8,9 +8,9 @@ func (e ErrNotAFunction) Error() string {
 	return "not a function"
 }
 
-func analyzeConstructor(constructFunction any) ([]reflect.Type, error) {
+func analyzeConstructor(constructFunction any) ([]reflect.Type, []reflect.Type, error) {
 	if reflect.TypeOf(constructFunction).Kind() != reflect.Func {
-		return nil, ErrNotAFunction{}
+		return nil, nil, ErrNotAFunction{}
 	}
 
 	constructor := reflect.ValueOf(constructFunction)
@@ -20,5 +20,11 @@ func analyzeConstructor(constructFunction any) ([]reflect.Type, error) {
 		args = append(args, constructor.Type().In(i))
 	}
 
-	return args, nil
+	var returns []reflect.Type
+
+	for i := 0; i < constructor.Type().NumOut(); i++ {
+		returns = append(returns, constructor.Type().Out(i))
+	}
+
+	return args, returns, nil
 }

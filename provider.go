@@ -19,7 +19,7 @@ func New() *Provider {
 }
 
 func (p *Provider) Register(constructFunction any) error {
-	args, err := analyzeConstructor(constructFunction)
+	args, _, err := analyzeConstructor(constructFunction)
 	if err != nil {
 		return err
 	}
@@ -37,6 +37,40 @@ func (p *Provider) Register(constructFunction any) error {
 func Get[T any](provider *Provider) (T, bool) {
 	v, ok := provider.container[reflect.TypeOf(*new(T))].(T)
 	return v, ok
+}
+
+type ErrInvalidFunctionReturn struct{}
+
+func (e ErrInvalidFunctionReturn) Error() string {
+	return "invalid function return"
+}
+
+func Run[T any](provider *Provider, function any) (r T, err error) {
+	args, rets, err := analyzeConstructor(function)
+	if err != nil {
+		return r, err
+	}
+
+	if len(rets) != 2 || rets[1].String() != "error" || rets[0] != reflect.TypeOf(*new(T)) {
+		return r, ErrInvalidFunctionReturn{}
+	}
+
+	reflectArgs := make([]reflect.Value, len(args))
+	for i, arg := range args {
+		v, ok := provider.container[arg]
+		if !ok {
+			return r, ErrNotProvided{arg}
+		}
+		reflectArgs[i] = reflect.ValueOf(v)
+	}
+
+	reflectReturns := reflect.ValueOf(function).Call(reflectArgs)
+
+	if !reflectReturns[1].IsNil() {
+		return r, reflectReturns[1].Interface().(error)
+	}
+
+	return reflectReturns[0].Interface().(T), nil
 }
 
 type ErrNotProvided struct {
