@@ -73,10 +73,15 @@ func main() {
 
 	fmt.Println(provider.Get[*Person](pv))
 	fmt.Println(provider.Get[*House](pv))
+
+	fmt.Println(provider.Run[string](pv, func(p *Person) (string, error) {
+		return fmt.Sprintf("name: %s, age: %d", p.Name, p.Age), nil
+	}))
 }
 ```
 
 ```bash
 &{snowmerak 27} true
 &{0xc00008e060} true
+name: John Doe, age: 25 <nil>
 ```
