@@ -73,6 +73,34 @@ func Run[T any](provider *Provider, function any) (r T, err error) {
 	return reflectReturns[0].Interface().(T), nil
 }
 
+func JustRun(provider *Provider, function any) error {
+	args, rets, err := analyzeConstructor(function)
+	if err != nil {
+		return err
+	}
+
+	if len(rets) != 1 || rets[0].String() != "error" {
+		return ErrInvalidFunctionReturn{}
+	}
+
+	reflectArgs := make([]reflect.Value, len(args))
+	for i, arg := range args {
+		v, ok := provider.container[arg]
+		if !ok {
+			return ErrNotProvided{arg}
+		}
+		reflectArgs[i] = reflect.ValueOf(v)
+	}
+
+	reflectReturns := reflect.ValueOf(function).Call(reflectArgs)
+
+	if !reflectReturns[0].IsNil() {
+		return reflectReturns[0].Interface().(error)
+	}
+
+	return nil
+}
+
 type ErrNotProvided struct {
 	Type reflect.Type
 }
