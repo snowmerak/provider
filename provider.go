@@ -4,21 +4,30 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 type Provider struct {
 	constructors map[reflect.Type]map[reflect.Value]struct{}
 	container    map[reflect.Type]any
+	lock         sync.RWMutex
 }
 
 func New() *Provider {
 	return &Provider{
 		constructors: make(map[reflect.Type]map[reflect.Value]struct{}),
 		container:    make(map[reflect.Type]any),
+		lock:         sync.RWMutex{},
 	}
 }
 
-func (p *Provider) Register(constructFunction any) error {
+func (p *Provider) Register(constructFunction ...any) error {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.register(constructFunction)
+}
+
+func (p *Provider) register(constructFunction any) error {
 	args, _, err := analyzeConstructor(constructFunction)
 	if err != nil {
 		return err
@@ -35,6 +44,8 @@ func (p *Provider) Register(constructFunction any) error {
 }
 
 func Get[T any](provider *Provider) (T, bool) {
+	provider.lock.RLock()
+	defer provider.lock.RUnlock()
 	v, ok := provider.container[reflect.TypeOf(*new(T))].(T)
 	return v, ok
 }
@@ -46,6 +57,9 @@ func (e ErrInvalidFunctionReturn) Error() string {
 }
 
 func Run[T any](provider *Provider, function any) (r T, err error) {
+	provider.lock.RLock()
+	defer provider.lock.RUnlock()
+
 	args, rets, err := analyzeConstructor(function)
 	if err != nil {
 		return r, err
@@ -74,6 +88,9 @@ func Run[T any](provider *Provider, function any) (r T, err error) {
 }
 
 func JustRun(provider *Provider, function any) error {
+	provider.lock.RLock()
+	defer provider.lock.RUnlock()
+
 	args, rets, err := analyzeConstructor(function)
 	if err != nil {
 		return err
@@ -96,6 +113,33 @@ func JustRun(provider *Provider, function any) error {
 
 	if !reflectReturns[0].IsNil() {
 		return reflectReturns[0].Interface().(error)
+	}
+
+	return nil
+}
+
+func Update(provider *Provider, function any) error {
+	provider.lock.Lock()
+	defer provider.lock.Unlock()
+
+	args, _, err := analyzeConstructor(function)
+	if err != nil {
+		return err
+	}
+
+	reflectArgs := make([]reflect.Value, len(args))
+	for i, arg := range args {
+		v, ok := provider.container[arg]
+		if !ok {
+			return ErrNotProvided{arg}
+		}
+		reflectArgs[i] = reflect.ValueOf(v)
+	}
+
+	results := reflect.ValueOf(function).Call(reflectArgs)
+
+	for _, result := range results {
+		provider.container[result.Type()] = result.Interface()
 	}
 
 	return nil
@@ -137,6 +181,9 @@ func getContextType() reflect.Type {
 }
 
 func (p *Provider) Construct(ctx context.Context) error {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.container[getContextType()] = ctx
 	count := 0
 	for len(p.constructors) > 0 {
