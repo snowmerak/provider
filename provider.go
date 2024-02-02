@@ -24,7 +24,12 @@ func New() *Provider {
 func (p *Provider) Register(constructFunction ...any) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	return p.register(constructFunction)
+	for _, con := range constructFunction {
+		if err := p.register(con); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *Provider) register(constructFunction any) error {
