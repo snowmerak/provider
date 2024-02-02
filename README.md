@@ -59,11 +59,7 @@ func main() {
 
 	pv := provider.New()
 
-	if err := pv.Register(NewPerson); err != nil {
-		panic(err)
-	}
-
-	if err := pv.Register(NewHouse); err != nil {
+	if err := pv.Register(NewPerson, NewHouse); err != nil {
 		panic(err)
 	}
 
